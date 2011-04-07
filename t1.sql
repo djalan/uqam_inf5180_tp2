@@ -28,7 +28,7 @@ FROM Fournisseur
 
 
 INSERT INTO Commande (dateCommande, annulee, noClient)
-VALUES('2011/04/02', 1, 1)
+VALUES('2011/04/02', 0, 1)
 /
 INSERT INTO Commande (dateCommande, annulee, noClient)
 VALUES('2011/04/22', 0, 2)
@@ -40,10 +40,10 @@ FROM Commande
 
 
 INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
-VALUES('2011/01/01', '2011/01/09', 10.98, 0, 10.98)
+VALUES('2011/01/01', '2011/01/09', 100, 0, 100)
 /
 INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
-VALUES('2011/11/22', '2011/11/30', 1111.98, 0, 1111.98)
+VALUES('2011/11/22', '2011/11/30', 200, 0, 200)
 /
 SELECT *
 FROM FactureLivraison
@@ -51,42 +51,122 @@ FROM FactureLivraison
 
 
 
-INSERT INTO Produit
+----------------------
+-- Creation de donnees
+----------------------
+INSERT INTO Produit (noProduit, description, quantite, quantiteMinimum)
 VALUES(1, 'bouteille de vodka', 40, 10)
 /
-SELECT *
-FROM Produit
+INSERT INTO Item (codeZebre, noProduit)
+VALUES(11111, 1)
+/
+INSERT INTO Item (codeZebre, noProduit)
+VALUES(11112, 1)
+/
+INSERT INTO Item (codeZebre, noProduit)
+VALUES(11113, 1)
+/
+INSERT INTO Item (codeZebre, noProduit)
+VALUES(11114, 1)
+/
+INSERT INTO Item (codeZebre, noProduit)
+VALUES(11115, 1)
+/
+INSERT INTO Produit (noProduit, description, quantite, quantiteMinimum)
+VALUES(2, 'Chaises', 20, 5)
+/
+INSERT INTO Item (codeZebre, noProduit)
+VALUES(22221, 2)
+/
+INSERT INTO Item (codeZebre, noProduit)
+VALUES(22222, 2)
+/
+INSERT INTO Item (codeZebre, noProduit)
+VALUES(22223, 2)
+/
+INSERT INTO Item (codeZebre, noProduit)
+VALUES(22224, 2)
+/
+INSERT INTO Item (codeZebre, noProduit)
+VALUES(22225, 2)
+/
+SELECT	*
+FROM	Produit
+/
+SELECT	*
+FROM	Item
 /
 
 
 
-INSERT INTO LigneCommande
+------------------------------
+------------------------------
+-- Trigger: reduire quantite
+------------------------------
+------------------------------
+-- Reduire
+--
+SELECT	*
+FROM	Produit
+/
+INSERT INTO LigneCommande (noCommande, noProduit, quantite, quantiteRestante)
 VALUES(1, 1, 30, 30)
 /
-INSERT INTO LigneCommande
-VALUES(1, 2, 50, 50)
+SELECT	*
+FROM	LigneCommande
 /
-SELECT *
-FROM LigneCommande
+SELECT	*
+FROM	Produit
+/
+
+-- Trigger doit se declancher
+--
+INSERT INTO LigneCommande (noCommande, noProduit, quantite, quantiteRestante)
+VALUES(2, 1, 50, 50)
 /
 
 
 
-INSERT INTO PaiementCarteCredit
-VALUES('1234', 'FAILURE', '2011/11/11', 22.43, 1)
+-- Declanche CHECK
+INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
+VALUES('1234', 'FAILURE', '2011/11/11', 10, 1)
 /
-INSERT INTO PaiementCarteCredit
-VALUES('1235', 'VISA', '2011/11/11', 22.43, 1)
+-- Creation de 3 cartes valides
+INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
+VALUES('1235', 'VISA', '2011/11/11', 10, 1)
 /
-INSERT INTO PaiementCarteCredit
-VALUES('1236', 'Master Card', '2011/11/11', 22.43, 1)
+INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
+VALUES('1236', 'Master Card', '2011/11/11', 10, 1)
 /
-INSERT INTO PaiementCarteCredit
-VALUES('1237', 'American Express', '2011/11/11', 22.43, 1)
+INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
+VALUES('1237', 'American Express', '2011/11/11', 10, 1)
 /
 SELECT *
 FROM PaiementCarteCredit
 /
+
+
+
+------------------------------
+------------------------------
+-- Trigger: reduire quantite
+------------------------------
+------------------------------
+SELECT	*
+FROM	FactureLivraison
+/
+-- Declanche trigger
+INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
+VALUES('1235', 'VISA', '2011/11/11', 1000, 1)
+/
+-- Declanche trigger
+INSERT INTO PaiementCheque (noCheque, banque, datePaiement, montant, noLivraison)
+VALUES('54321', 'Desjardins', '2011/11/11', 2000, 2)
+/
+
+
+
+
 
 
 -- Delete
@@ -96,13 +176,15 @@ DELETE FROM LigneCommande
 /
 DELETE FROM Commande
 /
+DELETE FROM Item
+/
 DELETE FROM Produit
 /
 DELETE FROM Client
 /
 DELETE FROM PaiementCarteCredit
 /
-DELETE FROM PaiementCarteCredit
+DELETE FROM PaiementCheque
 /
 DELETE FROM FactureLivraison
 /

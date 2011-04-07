@@ -121,15 +121,15 @@ CREATE TABLE Item
 )
 /
 CREATE TABLE LigneCommande 
-(noProduit     INTEGER     NOT NULL,
- noCommande    INTEGER     NOT NULL,
- quantite      INTEGER     NOT NULL
+(noCommande    		INTEGER     NOT NULL,
+ noProduit     		INTEGER     NOT NULL,
+ quantite      		INTEGER     NOT NULL
         CHECK (quantite > 0),
- qteRestante   INTEGER     NOT NULL
-	CHECK (qteRestante >= 0),
- PRIMARY KEY (noProduit, noCommande),
- FOREIGN KEY (noProduit)              REFERENCES Produit(noProduit),
- FOREIGN KEY (noCommande)             REFERENCES Commande(noCommande)
+ quantiteRestante   	INTEGER     NOT NULL
+	CHECK (quantiteRestante >= 0),
+ PRIMARY KEY 		(noProduit, noCommande),
+ FOREIGN KEY 		(noProduit)              REFERENCES Produit(noProduit),
+ FOREIGN KEY 		(noCommande)             REFERENCES Commande(noCommande)
 )
 /
 CREATE TABLE FactureLivraison 
@@ -149,7 +149,7 @@ CREATE TABLE LigneLivraison
  noLivraison    INTEGER             NOT NULL,
  codeZebre      INTEGER             NOT NULL
         CHECK (codeZebre >= 0),
- PRIMARY KEY (noProduit, noCommande, noLivraison, codeZebre),
+ PRIMARY KEY (codeZebre),
  FOREIGN KEY (noProduit, noCommande)                 		REFERENCES LigneCommande(noProduit, noCommande),
  FOREIGN KEY (noLivraison)                           		REFERENCES FactureLivraison(noLivraison),
  FOREIGN KEY (codeZebre)                             		REFERENCES Item(codeZebre)
@@ -282,12 +282,12 @@ FOR EACH ROW
 DECLARE
 	qtite INTEGER;
 BEGIN    
-        SELECT Produit.quantite INTO qtite
-        FROM Produit
-        WHERE Produit.noProduit = :ligneApres.noProduit;
+        SELECT	quantite INTO qtite
+        FROM	Produit
+        WHERE	Produit.noProduit = :ligneApres.noProduit;
 
 	IF (:ligneApres.quantite > qtite) THEN 
-		raise_application_error (-20100, 'La quantite a livrer est superieure a la quantite en stock');
+		raise_application_error (-20100, 'La quantite a livrer est superieure a la quantite en stock!');
 	END IF;
 END;
 /
@@ -297,89 +297,68 @@ END;
 ------
 -- 3
 ------
-CREATE OR REPLACE TRIGGER BloquerQteLivreeQteCommande
-BEFORE INSERT ON LigneLivraison
-REFERENCING
-	NEW AS ligneApres
-FOR EACH ROW
-DECLARE
-	qteLivraison	INTEGER;
-	qteReste	INTEGER;
-BEGIN    
-        SELECT	COUNT(*) INTO qteLivraison
-        FROM	LigneLivraison
-        WHERE	ligneApres.noProduit = LigneCommande.noProduit AND
-		ligneApres.noCommande = LigneCommande.noCommande
-
-	SELECT	qteRestante INTO qteReste
-	FROM	LigneCommande
-        WHERE	ligneApres.noProduit = LigneCommande.noProduit AND
-		ligneApres.noCommande = LigneCommande.noCommande
-
-	IF (qteLivraison > qteReste) THEN 
-		raise_application_error (-20100, 'La quantite a livrer est superieure a la quantite restante de la commande');
-	END IF;
-END;
-/
-
-
--- 2
-------
---CREATE OR REPLACE TRIGGER BloquerQuantiteLivreeSelonQuantiteEnStock
---BEFORE INSERT OF quantite ON LigneCommande
---REFERENCING
---    NEW AS ligneApres
---FOR EACH ROW
---WHEN ligneApres.quantite > (
---        SELECT quantite
---        FROM Produit
---        WHERE noProduit = :ligneApres.noProduit)
---BEGIN
---	raise_application_error(-20100, 'La quantité désirée dépasse la quantité en stock!');
---END;
---/
-
-
-
-------
--- 3
-------
---CREATE OR REPLACE TRIGGER BloquerQteLivreeQteCommandee
+--CREATE OR REPLACE TRIGGER BloquerQteLivreeQteCommande
 --BEFORE INSERT ON LigneLivraison
 --REFERENCING
---    NEW AS ligneApres
+--	NEW AS ligneApres
 --FOR EACH ROW
---WHEN (
---    (SELECT  COUNT(:ligneApres.codeZebre)
---   FROM    LigneLivraison
---    WHERE   :ligneApres.noProduit = LigneCommande.noProduit AND
---            :ligneApres.noCommande = LigneCommande.noCommande;)
---    >
---    (SELECT quantite
---    FROM    LigneCommande
---    WHERE   :ligneApres.noProduit = LigneCommande.noProduit AND
---            :ligneApres.noCommande = LigneCommande.noCommande;)
---    )
---BEGIN
---	raise_application_error(-20100, 'La quantite a livrer depasse la quantite commandee!');
+--DECLARE
+--	qteLivraison	INTEGER;
+--	qteReste	INTEGER;
+--BEGIN    
+--        SELECT	COUNT(*) INTO qteLivraison
+--        FROM	LigneLivraison
+--	WHERE	:ligneApres.noProduit = LigneCommande.noProduit;
+--		:ligneApres.noCommande = LigneCommande.noCommande;
+--
+--	SELECT	quantiteRestante INTO qteReste
+--	FROM	LigneCommande
+--	WHERE	:ligneApres.noProduit = LigneCommande.noProduit AND
+--		:ligneApres.noCommande = LigneCommande.noCommande;
+--
+--	IF (qteLivraison > qteReste) THEN 
+--		raise_application_error (-20100, 'La quantite a livrer est superieure a la quantite restante de la commande');
+--	END IF;
 --END;
 --/
---WHEN    SELECT  COUNT(:ligneApres.codeZebre
-
 
 
 
 ------
 -- 4
 ------
--- CREATE OR REPLACE TRIGGER BloquerCarteCredit
--- BEFORE INSERT ON PaiementCarteCredit
--- REFERENCING
---     NEW AS ligne
--- FOR EACH ROW
---     WHEN (EXISTS(SELECT * FROM FactureLivraison WHERE ligne.noLivraison = FactureLivraison.noLivraison))
--- BEGIN
---     raise_application_error(-20100, 'Le paiement depasse le montant restant a payer');
--- END;
--- /
--- --WHEN (EXISTS(SELECT soldeRestant FROM FactureLivraison WHERE ligne.noLivraison = FactureLivraison.noLivraison))
+CREATE OR REPLACE TRIGGER BloquerCarteCredit
+BEFORE INSERT ON PaiementCarteCredit
+REFERENCING
+	NEW AS ligneApres
+FOR EACH ROW
+DECLARE
+	restant	INTEGER;
+BEGIN
+	SELECT	soldeRestant INTO restant
+	FROM	FactureLivraison
+	WHERE	:ligneApres.noLivraison = FactureLivraison.noLivraison;
+
+	IF (:ligneApres.montant > restant) THEN
+		raise_application_error(-20100, 'Le paiement par carte de credit depasse le montant restant a payer!');
+	END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER BloquerCheque
+BEFORE INSERT ON PaiementCheque
+REFERENCING
+	NEW AS ligneApres
+FOR EACH ROW
+DECLARE
+	restant	INTEGER;
+BEGIN
+	SELECT	soldeRestant INTO restant
+	FROM	FactureLivraison
+	WHERE	:ligneApres.noLivraison = FactureLivraison.noLivraison;
+
+	IF (:ligneApres.montant > restant) THEN
+		raise_application_error(-20100, 'Le paiement par cheque depasse le montant restant a payer!');
+	END IF;
+END;
+/
