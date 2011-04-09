@@ -10,7 +10,7 @@ DROP SEQUENCE sequence_fournisseur
 /
 DROP SEQUENCE sequence_commande
 /
-DROP SEQUENCE sequence_FactureLivraison
+DROP SEQUENCE sequence_LigneLivraison
 /
 
 
@@ -24,6 +24,8 @@ DROP TABLE Fournisseur
 DROP TABLE PaiementCheque
 /
 DROP TABLE PaiementCarteCredit
+/
+DROP TABLE ItemLivraison
 /
 DROP TABLE LigneLivraison
 /
@@ -54,7 +56,7 @@ CREATE TABLE Client
  motDePasse         VARCHAR(20)         NOT NULL,
  nom                VARCHAR(20)         NOT NULL,
  prenom             VARCHAR(20)         NOT NULL,
- plusGrandeQualite  VARCHAR(20)         NOT NULL,
+ plusGrandeQualite  VARCHAR(20),
  telephone          VARCHAR(10)         NOT NULL,
  PRIMARY KEY (noClient)
 )
@@ -98,7 +100,8 @@ CREATE TABLE Priorite
 CREATE TABLE Catalogue
 (noProduit      INTEGER     NOT NULL,
  dateCatalogue  DATE        NOT NULL,
- prix           FLOAT       NOT NULL,
+ prix           FLOAT       NOT NULL
+	CHECK (prix >= 0),
  PRIMARY KEY (noProduit, dateCatalogue),
  FOREIGN KEY (noProduit)                 REFERENCES Produit(noProduit)
 )
@@ -114,8 +117,11 @@ CREATE TABLE Commande
 )
 /
 CREATE TABLE Item 
-(codeZebre      INTEGER     NOT NULL,
+(codeZebre      INTEGER     NOT NULL
+	CHECK (codeZebre >= 0),
  noProduit      INTEGER     NOT NULL,
+ dejaLivre	INTEGER     NOT NULL
+        CHECK (dejaLivre IN(0, 1)),
  PRIMARY KEY (codeZebre),
  FOREIGN KEY (noProduit) REFERENCES Produit(noProduit)
 )
@@ -127,6 +133,8 @@ CREATE TABLE LigneCommande
         CHECK (quantite > 0),
  quantiteRestante   	INTEGER     NOT NULL
 	CHECK (quantiteRestante >= 0),
+ prix			INTEGER	    NOT NULL
+	CHECK (prix >= 0),
  PRIMARY KEY 		(noProduit, noCommande),
  FOREIGN KEY 		(noProduit)              REFERENCES Produit(noProduit),
  FOREIGN KEY 		(noCommande)             REFERENCES Commande(noCommande)
@@ -147,12 +155,22 @@ CREATE TABLE LigneLivraison
 (noProduit      INTEGER             NOT NULL,
  noCommande     INTEGER             NOT NULL,
  noLivraison    INTEGER             NOT NULL,
- codeZebre      INTEGER             NOT NULL
-        CHECK (codeZebre >= 0),
- PRIMARY KEY (codeZebre),
+ qteLivraison	INTEGER		    NOT NULL
+        CHECK (qteLivraison > 0),
+ PRIMARY KEY (noProduit, noCommande, noLivraison),
  FOREIGN KEY (noProduit, noCommande)                 		REFERENCES LigneCommande(noProduit, noCommande),
- FOREIGN KEY (noLivraison)                           		REFERENCES FactureLivraison(noLivraison),
- FOREIGN KEY (codeZebre)                             		REFERENCES Item(codeZebre)
+ FOREIGN KEY (noLivraison)                           		REFERENCES FactureLivraison(noLivraison)
+)
+/
+CREATE TABLE ItemLivraison 
+(codeZebre      INTEGER             NOT NULL
+	CHECK (codeZebre >= 0),
+ noProduit      INTEGER             NOT NULL,
+ noCommande     INTEGER             NOT NULL,
+ noLivraison    INTEGER             NOT NULL,
+ PRIMARY KEY (codeZebre),
+ FOREIGN KEY (codeZebre)               			REFERENCES Item(codeZebre),
+ FOREIGN KEY (noProduit, noCommande, noLivraison)   	REFERENCES LigneLivraison(noProduit, noCommande, noLivraison)
 )
 /
 CREATE TABLE PaiementCheque 
@@ -234,18 +252,33 @@ END;
 /
 
 
-CREATE SEQUENCE sequence_FactureLivraison
+--CREATE SEQUENCE sequence_FactureLivraison
+--START WITH 1
+--INCREMENT BY 1
+--/
+--
+--CREATE OR REPLACE TRIGGER trigger_seq_FactureLivraison
+--BEFORE INSERT
+--ON FactureLivraison
+--REFERENCING NEW AS NEW
+--FOR EACH ROW
+--BEGIN
+--SELECT sequence_FactureLivraison.nextval INTO :NEW.noLivraison FROM dual;
+--END;
+--/
+
+CREATE SEQUENCE sequence_LigneLivraison
 START WITH 1
 INCREMENT BY 1
 /
 
-CREATE OR REPLACE TRIGGER trigger_seq_FactureLivraison
+CREATE OR REPLACE TRIGGER trigger_seq_LigneLivraison
 BEFORE INSERT
-ON FactureLivraison
+ON LigneLivraison
 REFERENCING NEW AS NEW
 FOR EACH ROW
 BEGIN
-SELECT sequence_FactureLivraison.nextval INTO :NEW.noLivraison FROM dual;
+SELECT sequence_LigneLivraison.nextval INTO :NEW.noLivraison FROM dual;
 END;
 /
 
@@ -257,14 +290,14 @@ END;
 ------
 -- 1
 ------
-CREATE OR REPLACE TRIGGER ReduireQuantite
-AFTER INSERT ON LigneCommande
+CREATE OR REPLACE TRIGGER ReduireQuantiteStock
+AFTER INSERT ON LigneLivraison
 REFERENCING
 	NEW AS ligneApres
 FOR EACH ROW
 BEGIN
 	UPDATE 	Produit
-	SET 	quantite = (quantite - :ligneApres.quantite)
+	SET 	quantite = (quantite - :ligneApres.qteLivraison)
 	WHERE 	noProduit = :ligneApres.noProduit;
 END;
 /
@@ -274,19 +307,21 @@ END;
 ------
 -- 2
 ------
+-- Bloquer l'insertion d'une livraison d'un article
+-- lorsque la quantite livree depasse la quantite en stock
 CREATE OR REPLACE TRIGGER BloquerQteLivreeQteEnStock
-BEFORE INSERT ON LigneCommande
+BEFORE INSERT ON LigneLivraison
 REFERENCING
 	NEW AS ligneApres
 FOR EACH ROW
 DECLARE
-	qtite INTEGER;
+	qte INTEGER;
 BEGIN    
-        SELECT	quantite INTO qtite
+        SELECT	quantite INTO qte
         FROM	Produit
         WHERE	Produit.noProduit = :ligneApres.noProduit;
 
-	IF (:ligneApres.quantite > qtite) THEN 
+	IF (:ligneApres.qteLivraison > qte) THEN 
 		raise_application_error (-20100, 'La quantite a livrer est superieure a la quantite en stock!');
 	END IF;
 END;
@@ -296,36 +331,34 @@ END;
 
 ------
 -- 3
-------
---CREATE OR REPLACE TRIGGER BloquerQteLivreeQteCommande
---BEFORE INSERT ON LigneLivraison
---REFERENCING
---	NEW AS ligneApres
---FOR EACH ROW
---DECLARE
---	qteLivraison	INTEGER;
---	qteReste	INTEGER;
---BEGIN    
---        SELECT	COUNT(*) INTO qteLivraison
---        FROM	LigneLivraison
---	WHERE	:ligneApres.noProduit = LigneCommande.noProduit;
---		:ligneApres.noCommande = LigneCommande.noCommande;
---
---	SELECT	quantiteRestante INTO qteReste
---	FROM	LigneCommande
---	WHERE	:ligneApres.noProduit = LigneCommande.noProduit AND
---		:ligneApres.noCommande = LigneCommande.noCommande;
---
---	IF (qteLivraison > qteReste) THEN 
---		raise_application_error (-20100, 'La quantite a livrer est superieure a la quantite restante de la commande');
---	END IF;
---END;
---/
+-- Bloquer l'insertion d'une livraison d'un article quand
+-- la quantite totale livree depasse la quantite
+-- commandee de la commande concernee
+CREATE OR REPLACE TRIGGER BloquerQteLivreeQteCommande
+BEFORE INSERT ON LigneLivraison
+REFERENCING
+	NEW AS ligneApres
+FOR EACH ROW
+DECLARE
+	qte INTEGER;
+BEGIN    
+        SELECT	quantite INTO qte
+        FROM	LigneCommande
+        WHERE	LigneCommande.noProduit = :ligneApres.noProduit AND
+		LigneCommande.noCommande = :ligneApres.noCommande;
+
+	IF (:ligneApres.qteLivraison > qte) THEN 
+		raise_application_error (-20100, 'La quantite a livrer est superieure a la quantite commandee!');
+	END IF;
+END;
+/
 
 
 
 ------
 -- 4
+-- Bloquer l'insertion d'un paiement qui
+-- depasse le montant qui reste a payer
 ------
 CREATE OR REPLACE TRIGGER BloquerCarteCredit
 BEFORE INSERT ON PaiementCarteCredit
@@ -344,7 +377,6 @@ BEGIN
 	END IF;
 END;
 /
-
 CREATE OR REPLACE TRIGGER BloquerCheque
 BEFORE INSERT ON PaiementCheque
 REFERENCING
@@ -368,31 +400,8 @@ END;
 ---------------------
 -- 5 Donnees derivees
 ---------------------
--- 
---CREATE OR REPLACE TRIGGER PaiementAutoriseCarteCredit
---AFTER INSERT ON PaiementCarteCredit
---REFERENCING
---NEW AS ligne
---FOR EACH ROW
---	UPDATE 	FactureLivraison
---	SET 	soldeRestant = (soldeRestant - :ligne.montant)
---	WHERE 	noLivraison = :ligne.noLivraison;
---END;
---/
---
---CREATE OR REPLACE TRIGGER PaiementAutoriseCheque
---AFTER INSERT ON PaiementCheque
---REFERENCING
---	NEW AS ligneApres;
---FOR EACH ROW
---	UPDATE 	FactureLivraison
---	SET 	soldeRestant = (soldeRestant - :ligneApres.montant)
---	WHERE 	noLivraison = :ligneApres.noLivraison;
---END;
---/
-
-
-
+-- 5a
+-----
 CREATE OR REPLACE TRIGGER PaiementAutoriseCarteCredit
 AFTER INSERT ON PaiementCarteCredit
 REFERENCING
@@ -407,6 +416,9 @@ END;
 
 
 
+-----
+-- 5b
+-----
 CREATE OR REPLACE TRIGGER PaiementAutoriseCheque
 AFTER INSERT ON PaiementCheque
 REFERENCING
@@ -421,6 +433,9 @@ END;
 
 
 
+-----
+-- 5c
+-----
 CREATE OR REPLACE TRIGGER ChangerPourFacturePayee
 BEFORE UPDATE ON FactureLivraison
 REFERENCING
@@ -433,36 +448,33 @@ BEGIN
 END;
 /
 
------------- not working ---------
---CREATE OR REPLACE TRIGGER TestDeCave
---AFTER UPDATE ON FactureLivraison
---REFERENCING
-----	OLD AS old
---	NEW AS new
---FOR EACH ROW
---BEGIN
---	IF (:new.payee = 1) THEN
---		UPDATE	FactureLivraison
---		SET	sousTotal = 666
---		WHERE	noLivraison = :new.noLivraison;
---	END IF;
-----	IF (:old.payee = 1) THEN
-----		raise_application_error(-20100, 'old');
-----	END IF;
-----	IF (:new.payee = 1) THEN
-----		raise_application_error(-20100, 'new');
-----		:new.sousTotal := 666;
-----	END IF;
---END;
-/
 
-CREATE OR REPLACE TRIGGER EnleverItem
+
+-----
+-- 5d
+-----
+CREATE OR REPLACE TRIGGER ReduireQuantiteCommande
 AFTER INSERT ON LigneLivraison
 REFERENCING
 	NEW AS ligneApres
 FOR EACH ROW
 BEGIN
-	DELETE	FROM Item
-	WHERE	codeZebre = :ligneApres.codeZebre;
+	UPDATE 	LigneCommande
+	SET 	qteRestante = (qteRestante - :ligneApres.qteLivraison)
+	WHERE 	noProduit = :ligneApres.noProduit AND
+		noCommande = :ligneApres.noCommande;
 END;
 /
+
+
+
+--CREATE OR REPLACE TRIGGER EnleverItem
+--AFTER INSERT ON LigneLivraison
+--REFERENCING
+--	NEW AS ligneApres
+--FOR EACH ROW
+--BEGIN
+--	DELETE	FROM Item
+--	WHERE	codeZebre = :ligneApres.codeZebre;
+--END;
+--/
