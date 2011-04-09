@@ -10,7 +10,7 @@ DROP SEQUENCE sequence_fournisseur
 /
 DROP SEQUENCE sequence_commande
 /
-DROP SEQUENCE sequence_LigneLivraison
+DROP SEQUENCE sequence_FactureLivraison
 /
 
 
@@ -68,7 +68,7 @@ CREATE TABLE Adresse
  rue                VARCHAR(20)             NOT NULL,
  ville              VARCHAR(20)             NOT NULL,
  pays               VARCHAR(20)             NOT NULL,
- codePostal         VARCHAR(10)             NOT NULL,
+ codePostal         VARCHAR(6)              NOT NULL,
  PRIMARY KEY (noClient, noFournisseur)
 )
 /
@@ -131,10 +131,8 @@ CREATE TABLE LigneCommande
  noProduit     		INTEGER     NOT NULL,
  quantite      		INTEGER     NOT NULL
         CHECK (quantite > 0),
- quantiteRestante   	INTEGER     NOT NULL
-	CHECK (quantiteRestante >= 0),
- prix			INTEGER	    NOT NULL
-	CHECK (prix >= 0),
+ qteRestante   	INTEGER     NOT NULL,
+ prixVente		INTEGER	    NOT NULL,
  PRIMARY KEY 		(noProduit, noCommande),
  FOREIGN KEY 		(noProduit)              REFERENCES Produit(noProduit),
  FOREIGN KEY 		(noCommande)             REFERENCES Commande(noCommande)
@@ -163,8 +161,7 @@ CREATE TABLE LigneLivraison
 )
 /
 CREATE TABLE ItemLivraison 
-(codeZebre      INTEGER             NOT NULL
-	CHECK (codeZebre >= 0),
+(codeZebre      INTEGER             NOT NULL,
  noProduit      INTEGER             NOT NULL,
  noCommande     INTEGER             NOT NULL,
  noLivraison    INTEGER             NOT NULL,
@@ -252,44 +249,28 @@ END;
 /
 
 
---CREATE SEQUENCE sequence_FactureLivraison
---START WITH 1
---INCREMENT BY 1
---/
---
---CREATE OR REPLACE TRIGGER trigger_seq_FactureLivraison
---BEFORE INSERT
---ON FactureLivraison
---REFERENCING NEW AS NEW
---FOR EACH ROW
---BEGIN
---SELECT sequence_FactureLivraison.nextval INTO :NEW.noLivraison FROM dual;
---END;
---/
-
-CREATE SEQUENCE sequence_LigneLivraison
+CREATE SEQUENCE sequence_FactureLivraison
 START WITH 1
 INCREMENT BY 1
 /
 
-CREATE OR REPLACE TRIGGER trigger_seq_LigneLivraison
+CREATE OR REPLACE TRIGGER trigger_seq_FactureLivraison
 BEFORE INSERT
-ON LigneLivraison
+ON FactureLivraison
 REFERENCING NEW AS NEW
 FOR EACH ROW
 BEGIN
-SELECT sequence_LigneLivraison.nextval INTO :NEW.noLivraison FROM dual;
+SELECT sequence_FactureLivraison.nextval INTO :NEW.noLivraison FROM dual;
 END;
 /
 
 
 
-----------
--- TRIGGER
-----------
-------
--- 1
-------
+------------------------------
+-- TRIGGERS
+------------------------------
+-- 1 Reduire la quantite en stock apres livraison
+--
 CREATE OR REPLACE TRIGGER ReduireQuantiteStock
 AFTER INSERT ON LigneLivraison
 REFERENCING
@@ -304,11 +285,9 @@ END;
 
 
 
-------
--- 2
-------
--- Bloquer l'insertion d'une livraison d'un article
--- lorsque la quantite livree depasse la quantite en stock
+-- 2 Bloquer l'insertion d'une livraison d'un article
+--   lorsque la quantite livree depasse la quantite en stock
+--
 CREATE OR REPLACE TRIGGER BloquerQteLivreeQteEnStock
 BEFORE INSERT ON LigneLivraison
 REFERENCING
@@ -329,11 +308,10 @@ END;
 
 
 
-------
--- 3
--- Bloquer l'insertion d'une livraison d'un article quand
--- la quantite totale livree depasse la quantite
--- commandee de la commande concernee
+-- 3 Bloquer l'insertion d'une livraison d'un article quand
+--   la quantite totale livree depasse la quantite
+--   commandee de la commande concernee
+--
 CREATE OR REPLACE TRIGGER BloquerQteLivreeQteCommande
 BEFORE INSERT ON LigneLivraison
 REFERENCING
@@ -342,7 +320,7 @@ FOR EACH ROW
 DECLARE
 	qte INTEGER;
 BEGIN    
-        SELECT	quantite INTO qte
+        SELECT	qteRestante INTO qte
         FROM	LigneCommande
         WHERE	LigneCommande.noProduit = :ligneApres.noProduit AND
 		LigneCommande.noCommande = :ligneApres.noCommande;
@@ -355,11 +333,10 @@ END;
 
 
 
-------
 -- 4
--- Bloquer l'insertion d'un paiement qui
--- depasse le montant qui reste a payer
-------
+-----
+-- 4a Bloquer paiement carte de credit
+-----
 CREATE OR REPLACE TRIGGER BloquerCarteCredit
 BEFORE INSERT ON PaiementCarteCredit
 REFERENCING
@@ -377,6 +354,9 @@ BEGIN
 	END IF;
 END;
 /
+-----
+-- 4b Bloquer paiement cheque
+-----
 CREATE OR REPLACE TRIGGER BloquerCheque
 BEFORE INSERT ON PaiementCheque
 REFERENCING
@@ -465,16 +445,3 @@ BEGIN
 		noCommande = :ligneApres.noCommande;
 END;
 /
-
-
-
---CREATE OR REPLACE TRIGGER EnleverItem
---AFTER INSERT ON LigneLivraison
---REFERENCING
---	NEW AS ligneApres
---FOR EACH ROW
---BEGIN
---	DELETE	FROM Item
---	WHERE	codeZebre = :ligneApres.codeZebre;
---END;
---/

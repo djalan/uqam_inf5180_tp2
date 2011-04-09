@@ -84,20 +84,7 @@ FROM	Produit
 SELECT	*
 FROM	Item
 /
-
-
-
-------------------------------
-------------------------------
--- Trigger: reduire quantite
-------------------------------
-------------------------------
--- Reduire
---
-SELECT	*
-FROM	Produit
-/
-INSERT INTO LigneCommande (noCommande, noProduit, quantite, quantiteRestante, prix)
+INSERT INTO LigneCommande (noCommande, noProduit, quantite, qteRestante, prixVente)
 VALUES(1, 1, 30, 30, 0)
 /
 SELECT	*
@@ -106,25 +93,25 @@ FROM	LigneCommande
 
 
 
-
--- Trigger 2: quantite a livrer superieure a quantite en STOCK
-INSERT INTO LigneLivraison (noProduit, noCommande, qteLivraison)
-VALUES(1, 1, 41)
+-- Trigger  1: Reduire quantite en stock des produits
+-- Trigger 5d: Reduire quantite restante de la commande 
+SELECT	*
+FROM	LigneCommande
 /
-
-
-
--- Trigger 3: quantite a livrer superieure a quantite en COMMANDE
-INSERT INTO LigneLivraison (noProduit, noCommande, qteLivraison)
-VALUES(1, 1, 31)
+SELECT	*
+FROM	Produit
 /
-
-
-
--- Trigger  1: Reduire quantite en stock
--- Trigger 5b: Reduire quantite restante de la commande 
-INSERT INTO LigneLivraison (noProduit, noCommande, qteLivraison)
-VALUES(1, 1, 2)
+INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
+VALUES('2011/11/22', '2011/11/30', 100, 0, 100)
+/
+INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
+VALUES('2011/01/04', '2011/11/30', 200, 0, 200)
+/
+SELECT *
+FROM FactureLivraison
+/
+INSERT INTO LigneLivraison (noProduit, noCommande, noLivraison, qteLivraison)
+VALUES(1, 1, 1, 2)
 /
 SELECT	*
 FROM	LigneLivraison
@@ -137,48 +124,41 @@ FROM	Produit
 /
 
 
-INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
-VALUES(11111, 1, 1)
-/
-INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
-VALUES(11112, 1, 1)
-/
 
 
-INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
-VALUES('2011/01/01', '2011/01/09', 100, 0, 100)
-/
-INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
-VALUES('2011/11/22', '2011/11/30', 200, 0, 200)
-/
-SELECT *
-FROM FactureLivraison
+
+-- Trigger 2: quantite a livrer superieure a quantite en STOCK
+-- ERREUR
+INSERT INTO LigneLivraison (noProduit, noCommande, noLivraison, qteLivraison)
+VALUES(1, 1, 1, 41)
 /
 
 
 
-
--- Declanche CHECK
--- Le type de carte de credit n'est pas valide
-INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
-VALUES('1234', 'FAILURE', '2011/11/11', 10, 1)
+-- Trigger 3: quantite a livrer superieure a quantite en COMMANDE
+-- ERREUR
+INSERT INTO LigneLivraison (noProduit, noCommande, noLivraison, qteLivraison)
+VALUES(1, 1, 1, 31)
 /
 
 
 
--- Trigger 4: Le montant du paiement excede le solde restant
+-- Trigger 4a: Le montant du paiement excede le solde restant - Carte de credit
+-- ERREUR
 INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
 VALUES('1235', 'VISA', '2011/11/11', 1000, 1)
 /
--- Declanche trigger
+
+-- Trigger 4b: Le montant du paiement excede le solde restant - Cheque
+-- ERREUR
 INSERT INTO PaiementCheque (noCheque, banque, datePaiement, montant, noLivraison)
-VALUES('54321', 'Desjardins', '2011/11/11', 2000, 2)
+VALUES('54321', 'Desjardins', '2011/11/11', 2000, 1)
 /
 
 
 
+-- Trigger 5a - Paiement carte de credit autorise
 -- Tester les 3 types de cartes
--- Paiement et reduire solde
 SELECT	*
 FROM	FactureLivraison
 /
@@ -191,8 +171,15 @@ VALUES('1236', 'Master Card', '2011/11/11', 10, 1)
 INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
 VALUES('1237', 'American Express', '2011/11/11', 10, 1)
 /
+-- Trigger 5b - Paiement cheque
+INSERT INTO PaiementCheque (noCheque, banque, datePaiement, montant, noLivraison)
+VALUES('54321', 'Desjardins', '2011/11/11', 10, 1)
+/
 SELECT *
 FROM PaiementCarteCredit
+/
+SELECT *
+FROM PaiementCheque
 /
 SELECT	*
 FROM	FactureLivraison
@@ -200,35 +187,114 @@ FROM	FactureLivraison
 
 
 
--- Trigger 5c: ChangerFacturePourPayer
+-- Trigger 5c: ChangerFacturePourPayer - Il reste 60$ a payer (100 - (4 x 10))
 INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
-VALUES('1238', 'American Express', '2011/11/11', 70, 1)
+VALUES('1238', 'American Express', '2011/11/11', 60, 1)
 /
 SELECT *
 FROM PaiementCarteCredit
 /
 SELECT	*
 FROM	FactureLivraison
+/
+
+
+
+-- Creation de donnes
+-- INSERTIONS QUI MARCHENT
+INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
+VALUES(11111, 1, 1, 1)
+/
+INSERT INTO Catalogue (noProduit, date, prix)
+VALUES (1, '2011/04/04', 14.99)
+/
+INSERT INTO Priorite (noFournisseur, noProduit, priorite)
+VALUES (1, 1, 10)
+/
+INSERT INTO Adresse (noClient, noFournisseur, numeroCivique, rue, ville, pays, codePostal)
+VALUES (1, 0, 213, 'Octave', 'Boucherville', 'Canada', 'J4B2N4')
+/
+-- Annule = 1     annulee = 0 deja testee en haut
+INSERT INTO Commande (dateCommande, annulee, noClient)
+VALUES('2011/05/25', 1, 2)
+/
+-- dejaLivre = 1      = 0  deja testee
+INSERT INTO Item (codeZebre, noProduit, dejaLivre)
+VALUES(11, 2, 1)
+/
+
+
+---------------
+-- CHECK
+---------------
+--CHECK (prix >= 0)
+INSERT INTO Catalogue (noProduit, dateCatalogue, prix)
+VALUES (1, '2011/04/04', -10)
+/
+
+--CHECK (annulee IN(0, 1)),
+INSERT INTO Commande (dateCommande, annulee, noClient)
+VALUES('2011/05/25', 2, 2)
+/
+
+--CHECK (codeZebre >= 0) - Table item
+INSERT INTO Item (codeZebre, noProduit, dejaLivre)
+VALUES(-1, 2, 0)
+/
+
+--CHECK (dejaLivre IN(0, 1)),
+INSERT INTO Item (codeZebre, noProduit, dejaLivre)
+VALUES(111342, 2, 2)
+/
+
+--CHECK (quantite > 0),
+INSERT INTO LigneCommande (noCommande, noProduit, quantite, qteRestante, prixVente)
+VALUES(1, 2, 0, 0, 10)
+/
+
+--CHECK (payee IN(0 ,1)),
+INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
+VALUES('2011/02/09', '2012/11/30', 200, 2, 200)
+/
+
+--CHECK (qteLivraison > 0),
+INSERT INTO LigneLivraison (noProduit, noCommande, noLivraison, qteLivraison)
+VALUES(1, 1, 1, 0)
+/
+
+-- CHECK (typeDeCarte IN ('VISA', 'Master Card', 'American Express'))
+INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
+VALUES('1234', 'FAILURE', '2011/11/11', 10, 2)
 /
 
 
 
 -- Delete
-DELETE FROM Fournisseur
+DROP TABLE Catalogue
 /
-DELETE FROM LigneCommande
+DROP TABLE Priorite
 /
-DELETE FROM Commande
+DROP TABLE Fournisseur
 /
-DELETE FROM Item
+DROP TABLE PaiementCheque
 /
-DELETE FROM Produit
+DROP TABLE PaiementCarteCredit
 /
-DELETE FROM Client
+DROP TABLE ItemLivraison
 /
-DELETE FROM PaiementCarteCredit
+DROP TABLE LigneLivraison
 /
-DELETE FROM PaiementCheque
+DROP TABLE FactureLivraison
 /
-DELETE FROM FactureLivraison
+DROP TABLE LigneCommande
+/
+DROP TABLE Item
+/
+DROP TABLE Produit
+/
+DROP TABLE Commande
+/
+DROP TABLE Client
+/
+DROP TABLE Adresse
 /
