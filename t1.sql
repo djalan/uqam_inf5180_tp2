@@ -119,8 +119,10 @@ SELECT	*
 FROM	Produit
 /
 
+
+
 -- Trigger doit se declancher
---
+-- La quantite de la commande excede la quantite disponible
 INSERT INTO LigneCommande (noCommande, noProduit, quantite, quantiteRestante)
 VALUES(2, 1, 50, 50)
 /
@@ -128,10 +130,34 @@ VALUES(2, 1, 50, 50)
 
 
 -- Declanche CHECK
+-- Le type de carte de credit n'est pas valide
 INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
 VALUES('1234', 'FAILURE', '2011/11/11', 10, 1)
 /
--- Creation de 3 cartes valides
+
+
+
+------------------------------
+------------------------------
+-- Trigger: Le montant du paiement excede le solde restant
+------------------------------
+------------------------------
+-- Declanche trigger
+INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
+VALUES('1235', 'VISA', '2011/11/11', 1000, 1)
+/
+-- Declanche trigger
+INSERT INTO PaiementCheque (noCheque, banque, datePaiement, montant, noLivraison)
+VALUES('54321', 'Desjardins', '2011/11/11', 2000, 2)
+/
+
+
+
+-- Tester les 3 types de cartes
+-- Paiement et reduire solde
+SELECT	*
+FROM	FactureLivraison
+/
 INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
 VALUES('1235', 'VISA', '2011/11/11', 10, 1)
 /
@@ -144,28 +170,22 @@ VALUES('1237', 'American Express', '2011/11/11', 10, 1)
 SELECT *
 FROM PaiementCarteCredit
 /
-
-
-
-------------------------------
-------------------------------
--- Trigger: reduire quantite
-------------------------------
-------------------------------
 SELECT	*
 FROM	FactureLivraison
 /
--- Declanche trigger
+
+
+
+-- Trigger ChangerFacturePourPayer
 INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
-VALUES('1235', 'VISA', '2011/11/11', 1000, 1)
+VALUES('1238', 'American Express', '2011/11/11', 70, 1)
 /
--- Declanche trigger
-INSERT INTO PaiementCheque (noCheque, banque, datePaiement, montant, noLivraison)
-VALUES('54321', 'Desjardins', '2011/11/11', 2000, 2)
+SELECT *
+FROM PaiementCarteCredit
 /
-
-
-
+SELECT	*
+FROM	FactureLivraison
+/
 
 
 

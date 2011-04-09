@@ -362,3 +362,107 @@ BEGIN
 	END IF;
 END;
 /
+
+
+
+---------------------
+-- 5 Donnees derivees
+---------------------
+-- 
+--CREATE OR REPLACE TRIGGER PaiementAutoriseCarteCredit
+--AFTER INSERT ON PaiementCarteCredit
+--REFERENCING
+--NEW AS ligne
+--FOR EACH ROW
+--	UPDATE 	FactureLivraison
+--	SET 	soldeRestant = (soldeRestant - :ligne.montant)
+--	WHERE 	noLivraison = :ligne.noLivraison;
+--END;
+--/
+--
+--CREATE OR REPLACE TRIGGER PaiementAutoriseCheque
+--AFTER INSERT ON PaiementCheque
+--REFERENCING
+--	NEW AS ligneApres;
+--FOR EACH ROW
+--	UPDATE 	FactureLivraison
+--	SET 	soldeRestant = (soldeRestant - :ligneApres.montant)
+--	WHERE 	noLivraison = :ligneApres.noLivraison;
+--END;
+--/
+
+
+
+CREATE OR REPLACE TRIGGER PaiementAutoriseCarteCredit
+AFTER INSERT ON PaiementCarteCredit
+REFERENCING
+	NEW AS ligneApres
+FOR EACH ROW
+BEGIN
+	UPDATE 	FactureLivraison
+	SET 	soldeRestant = (soldeRestant - :ligneApres.montant)
+	WHERE 	FactureLivraison.noLivraison = :ligneApres.noLivraison;
+END;
+/
+
+
+
+CREATE OR REPLACE TRIGGER PaiementAutoriseCheque
+AFTER INSERT ON PaiementCheque
+REFERENCING
+	NEW AS ligneApres
+FOR EACH ROW
+BEGIN
+	UPDATE 	FactureLivraison
+	SET 	soldeRestant = (soldeRestant - :ligneApres.montant)
+	WHERE 	FactureLivraison.noLivraison = :ligneApres.noLivraison;
+END;
+/
+
+
+
+CREATE OR REPLACE TRIGGER ChangerPourFacturePayee
+BEFORE UPDATE ON FactureLivraison
+REFERENCING
+	NEW AS ligneApres
+FOR EACH ROW
+BEGIN
+	IF (:ligneApres.soldeRestant = 0) THEN
+		:ligneApres.payee := 1;
+	END IF;
+END;
+/
+
+------------ not working ---------
+--CREATE OR REPLACE TRIGGER TestDeCave
+--AFTER UPDATE ON FactureLivraison
+--REFERENCING
+----	OLD AS old
+--	NEW AS new
+--FOR EACH ROW
+--BEGIN
+--	IF (:new.payee = 1) THEN
+--		UPDATE	FactureLivraison
+--		SET	sousTotal = 666
+--		WHERE	noLivraison = :new.noLivraison;
+--	END IF;
+----	IF (:old.payee = 1) THEN
+----		raise_application_error(-20100, 'old');
+----	END IF;
+----	IF (:new.payee = 1) THEN
+----		raise_application_error(-20100, 'new');
+----		:new.sousTotal := 666;
+----	END IF;
+--END;
+/
+
+CREATE OR REPLACE TRIGGER EnleverItem
+AFTER INSERT ON LigneLivraison
+REFERENCING
+	NEW AS ligneApres
+FOR EACH ROW
+BEGIN
+	DELETE	FROM Item
+	WHERE	codeZebre = :ligneApres.codeZebre;
+END;
+/
