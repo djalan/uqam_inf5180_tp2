@@ -1,5 +1,6 @@
 PROMPT Creation des tables
 SET ECHO ON
+SET SERVEROUTPUT ON
 --SPOOL output.txt
 
 
@@ -132,7 +133,7 @@ CREATE TABLE LigneCommande
  quantite      		INTEGER     NOT NULL
         CHECK (quantite > 0),
  qteRestante   	INTEGER     NOT NULL,
- prixVente		INTEGER	    NOT NULL,
+ prixVente		FLOAT	    NOT NULL,
  PRIMARY KEY 		(noProduit, noCommande),
  FOREIGN KEY 		(noProduit)              REFERENCES Produit(noProduit),
  FOREIGN KEY 		(noCommande)             REFERENCES Commande(noCommande)
@@ -444,4 +445,184 @@ BEGIN
 	WHERE 	noProduit = :ligneApres.noProduit AND
 		noCommande = :ligneApres.noCommande;
 END;
+/
+
+
+
+------------------------------
+-- FONCTIONS
+------------------------------
+-- 1 Prend un numero article et un numero commande et retourne la quantite deja livree
+--
+CREATE OR REPLACE FUNCTION fQuantiteDejaLivree
+(leProduit LigneCommande.noProduit%TYPE, laCommande LigneCommande.noCommande%TYPE)
+RETURN LigneCommande.quantite%TYPE IS
+
+	-- Déclaration des variables
+	laQuantite	LigneCommande.quantite%TYPE;
+	laQteRestante	LigneCommande.qteRestante%TYPE;
+	uneQteLivree	LigneCommande.quantite%TYPE;
+
+BEGIN
+	SELECT	quantite, qteRestante
+	INTO	laQuantite, laQteRestante
+	FROM	LigneCommande
+	WHERE	LigneCommande.noProduit = leProduit	AND
+		LigneCommande.noCommande = laCommande;
+
+	uneQteLivree := laQuantite - laQteRestante;
+	
+	RETURN uneQteLivree;
+END fQuantiteDejaLivree;
+/
+
+
+
+----
+-- 2
+----
+CREATE OR REPLACE PROCEDURE pAfficherTotalFacture
+(leNoLivraison	FactureLivraison.noLivraison%TYPE) IS
+
+	-- Déclaration des variable
+	unSousTotal	FactureLivraison.sousTotal%TYPE;	
+	unTotal		FactureLivraison.sousTotal%TYPE;	
+	
+BEGIN
+	SELECT	sousTotal
+	INTO	unSousTotal
+	FROM	FactureLivraison
+	WHERE	FactureLivraison.noLivraison = leNoLivraison;
+
+	unTotal := unSousTotal * 1.15;
+
+	DBMS_OUTPUT.PUT_LINE('Le total de la facture est: '||unTotal);
+END pAfficherTotalFacture;
+/
+
+
+
+----
+-- 3
+----
+CREATE OR REPLACE PROCEDURE pProduireFacture
+(leNoLivraison	FactureLivraison.noLivraison%TYPE, laDateLimitePaiement FactureLivraison.dateLimitePaiement%TYPE) IS
+
+	-- Déclaration des variable
+	unSousTotal	FactureLivraison.sousTotal%TYPE;
+	unTotal		FactureLivraison.sousTotal%TYPE;
+	laDateLivraison	FactureLivraison.dateLivraison%TYPE;
+	unPrixVente	LigneCommande.prixVente%TYPE;
+	unTotalProduit  LigneCommande.prixVente%TYPE;
+	unMontantTaxes	FactureLivraison.sousTotal%TYPE;
+	leNoClient	Client.noClient%TYPE;
+	lePrenom	Client.prenom%TYPE;
+	leNom		Client.nom%TYPE;
+	leNumeroCivique	Adresse.numeroCivique%TYPE;
+	laRue		Adresse.rue%TYPE;
+	laVille		Adresse.ville%TYPE;
+	lePays		Adresse.pays%TYPE;
+	leCodePostal	Adresse.codePostal%TYPE;
+	leNoCommande	LigneCommande.noCommande%TYPE;
+	laQteLivraison	LigneLivraison.qteLivraison%TYPE;
+	leNoProduit	LigneLivraison.noProduit%TYPE;
+	leCodeZebre	ItemLivraison.codeZebre%TYPE;
+
+	
+	-- Déclaration du curseur
+	CURSOR lignesLivraison (leNoLivraison FactureLivraison.noLivraison%TYPE) IS
+		SELECT	noProduit, noCommande, qteLivraison
+		FROM	LigneLivraison
+		WHERE	LigneLivraison.noLivraison = leNoLivraison;
+
+	CURSOR lignesItemLivraison (leNoLivraison FactureLivraison.noLivraison%TYPE) IS
+		SELECT	codeZebre, noProduit, noCommande
+		FROM	ItemLivraison
+		WHERE	ItemLivraison.noLivraison = leNoLivraison;
+
+BEGIN
+	SELECT	MAX(noCommande)
+	INTO	leNoCommande
+	FROM	LigneLivraison
+	WHERE	LigneLivraison.noLivraison = leNoLivraison;
+
+	SELECT	noClient
+	INTO	leNoClient
+	FROM	Commande
+	WHERE	Commande.noCommande = leNoCommande;
+
+	SELECT	numeroCivique, rue, ville, pays, codePostal
+	INTO	leNumeroCivique, laRue, laVille, lePays, leCodePostal
+	FROM	Adresse
+	WHERE	Adresse.noClient = leNoClient AND
+		Adresse.noFournisseur = 0;
+
+	SELECT	prenom, nom
+	INTO	lePrenom, leNom
+	FROM	Client
+	WHERE	Client.noClient = leNoClient;
+
+	SELECT	dateLivraison
+	INTO	laDateLivraison
+	FROM	FactureLivraison
+	WHERE 	FactureLivraison.noLivraison = leNoLivraison;
+
+	DBMS_OUTPUT.PUT_LINE('No. livraison:  '||leNoLivraison);
+	DBMS_OUTPUT.PUT_LINE('Date livraison: '||laDateLivraison);
+	DBMS_OUTPUT.PUT_LINE('No. client:     '||leNoClient);
+	DBMS_OUTPUT.PUT(lePrenom);
+	DBMS_OUTPUT.PUT_LINE(' '||leNom);
+	DBMS_OUTPUT.PUT(leNumeroCivique);
+	DBMS_OUTPUT.PUT_LINE(' '||laRue);
+	DBMS_OUTPUT.PUT(laVille);
+	DBMS_OUTPUT.PUT_LINE(', '||lePays);
+	DBMS_OUTPUT.PUT_LINE(leCodePostal);
+	DBMS_OUTPUT.PUT_LINE('Liv  Code   Comm  Prix');
+
+	unTotal		:= 0;
+	unSousTotal	:= 0;
+
+	OPEN lignesLivraison(leNoLivraison);
+	LOOP
+		FETCH lignesLivraison INTO leNoProduit, leNoCommande, laQteLivraison;
+		EXIT WHEN lignesLivraison%NOTFOUND;
+		SELECT	prixVente
+		INTO	unPrixVente
+		FROM	LigneCommande
+		WHERE	LigneCommande.noProduit = leNoProduit	AND
+			LigneCommande.noCommande = leNoCommande;
+		unTotalProduit := laQteLivraison * unPrixVente; 
+		unSousTotal := unSousTotal + unTotalProduit;
+
+
+		OPEN lignesItemLivraison(leNoLivraison);
+		LOOP
+			FETCH lignesItemLivraison INTO leCodeZebre, leNoProduit, leNoCommande;
+			EXIT WHEN lignesItemLivraison%NOTFOUND;
+			SELECT	prixVente
+			INTO	unPrixVente
+			FROM	LigneCommande
+			WHERE	LigneCommande.noProduit = leNoProduit	AND
+				LigneCommande.noCommande = leNoCommande;
+			DBMS_OUTPUT.PUT(leNoProduit);
+			DBMS_OUTPUT.PUT('    '||leCodeZebre);
+			DBMS_OUTPUT.PUT('    '||leNoCommande);
+			DBMS_OUTPUT.PUT_LINE('   '||unPrixVente);
+		END LOOP;
+		CLOSE lignesItemLivraison;
+
+	END LOOP;
+	CLOSE lignesLivraison;
+
+	unMontantTaxes := unSousTotal * 0.15;
+	unTotal := unMontantTaxes + unSousTotal;
+
+	UPDATE	FactureLivraison
+	SET	sousTotal = unSousTotal, soldeRestant = unTotal
+	WHERE	noLivraison = leNoLivraison;
+
+	DBMS_OUTPUT.PUT_LINE('Sous-total: '||unSousTotal);
+	DBMS_OUTPUT.PUT_LINE('Taxes:      '||unMontantTaxes);
+	DBMS_OUTPUT.PUT_LINE('Total:      '||unTotal);
+END pProduireFacture;
 /

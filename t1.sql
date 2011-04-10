@@ -28,13 +28,16 @@ FROM Fournisseur
 
 
 INSERT INTO Commande (dateCommande, annulee, noClient)
-VALUES ('2011/04/02', 0, 1)
+VALUES ('2011/01/01', 0, 1)
 /
 INSERT INTO Commande (dateCommande, annulee, noClient)
-VALUES ('2011/04/22', 0, 2)
+VALUES ('2011/04/04', 0, 1)
 /
-SELECT *
-FROM Commande
+INSERT INTO Commande (dateCommande, annulee, noClient)
+VALUES ('2011/04/08', 0, 1)
+/
+SELECT	*
+FROM	Commande
 /
 
 
@@ -87,6 +90,15 @@ FROM	Item
 INSERT INTO LigneCommande (noCommande, noProduit, quantite, qteRestante, prixVente)
 VALUES (1, 1, 50, 50, 0)
 /
+INSERT INTO LigneCommande (noCommande, noProduit, quantite, qteRestante, prixVente)
+VALUES (2, 1, 4, 4, 10.01)
+/
+INSERT INTO LigneCommande (noCommande, noProduit, quantite, qteRestante, prixVente)
+VALUES (2, 2, 2, 2, 100)
+/
+INSERT INTO LigneCommande (noCommande, noProduit, quantite, qteRestante, prixVente)
+VALUES (3, 2, 1, 1, 100)
+/
 SELECT	*
 FROM	LigneCommande
 /
@@ -102,16 +114,25 @@ SELECT	*
 FROM	Produit
 /
 INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
-VALUES ('2011/11/22', '2011/11/30', 100, 0, 100)
+VALUES ('2011/10/01', '2011/10/10', 100, 0, 100)
 /
 INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
-VALUES ('2011/01/04', '2011/11/30', 200, 0, 200)
+VALUES ('2011/11/22', '2011/11/30', 0, 0, 0)
 /
 SELECT *
 FROM FactureLivraison
 /
 INSERT INTO LigneLivraison (noProduit, noCommande, noLivraison, qteLivraison)
 VALUES (1, 1, 1, 2)
+/
+INSERT INTO LigneLivraison (noProduit, noCommande, noLivraison, qteLivraison)
+VALUES (1, 2, 2, 4)
+/
+INSERT INTO LigneLivraison (noProduit, noCommande, noLivraison, qteLivraison)
+VALUES (2, 2, 2, 2)
+/
+INSERT INTO LigneLivraison (noProduit, noCommande, noLivraison, qteLivraison)
+VALUES (2, 3, 2, 1)
 /
 SELECT	*
 FROM	LigneLivraison
@@ -203,10 +224,13 @@ FROM	FactureLivraison
 -- Creation de donnes
 -- INSERTIONS QUI MARCHENT
 INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
-VALUES (11111, 1, 1, 1)
+VALUES (11115, 1, 1, 1)
 /
 INSERT INTO Catalogue (noProduit, dateCatalogue, prix)
-VALUES (1, '2011/04/04', 14.99)
+VALUES (1, '2011/01/01', 10.01)
+/
+INSERT INTO Catalogue (noProduit, dateCatalogue, prix)
+VALUES (2, '2011/01/01', 100)
 /
 INSERT INTO Priorite (noFournisseur, noProduit, priorite)
 VALUES (1, 1, 10)
@@ -222,6 +246,31 @@ VALUES ('2011/05/25', 1, 2)
 INSERT INTO Item (codeZebre, noProduit, dejaLivre)
 VALUES (11, 2, 1)
 /
+
+
+-- test procedure facture
+INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
+VALUES (11111, 1, 2, 2)
+/
+INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
+VALUES (11112, 1, 2, 2)
+/
+INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
+VALUES (11113, 1, 2, 2)
+/
+INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
+VALUES (11114, 1, 2, 2)
+/
+INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
+VALUES (22221, 2, 2, 2)
+/
+INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
+VALUES (22222, 2, 2, 2)
+/
+INSERT INTO ItemLivraison (codeZebre, noProduit, noCommande, noLivraison)
+VALUES (22223, 2, 3, 2)
+/
+
 
 
 ---------------
@@ -269,7 +318,30 @@ VALUES ('1234', 'FAILURE', '2011/11/11', 10, 2)
 
 
 
--- Delete
+------------------------
+-- FONCTIONS
+------------------------
+-- Param1: noProduit
+-- Param2: noCommande:
+SELECT  fQuantiteDejaLivree(1, 1)
+FROM    dual
+/
+
+-- Param1: noLivraison
+-- Param2: dateLimitePaiement
+EXECUTE pProduireFacture(2, '2011/11/30')
+/
+SELECT  *
+FROM    FactureLivraison
+/
+
+-- Param1: noLivraison
+EXECUTE pAfficherTotalFacture(2)
+/
+
+
+
+-- Drop tables
 DROP TABLE Catalogue
 /
 DROP TABLE Priorite
