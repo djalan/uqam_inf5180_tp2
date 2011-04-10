@@ -85,7 +85,7 @@ SELECT	*
 FROM	Item
 /
 INSERT INTO LigneCommande (noCommande, noProduit, quantite, qteRestante, prixVente)
-VALUES(1, 1, 30, 30, 0)
+VALUES(1, 1, 50, 50, 0)
 /
 SELECT	*
 FROM	LigneCommande
@@ -138,7 +138,7 @@ VALUES(1, 1, 1, 41)
 -- Trigger 3: quantite a livrer superieure a quantite en COMMANDE
 -- ERREUR
 INSERT INTO LigneLivraison (noProduit, noCommande, noLivraison, qteLivraison)
-VALUES(1, 1, 1, 31)
+VALUES(1, 1, 1, 51)
 /
 
 
