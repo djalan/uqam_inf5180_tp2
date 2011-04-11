@@ -1,7 +1,5 @@
 ------------------------------
-------------------------------
 -- Incrementation automatique
-------------------------------
 ------------------------------
 INSERT INTO Client (motDePasse, nom, prenom, plusGrandeQualite, telephone)
 VALUES ('mdp', 'Sirois', 'Alain', 'connard', '5144359111')
@@ -118,6 +116,9 @@ VALUES ('2011/10/01', '2011/10/10', 100, 0, 100)
 /
 INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
 VALUES ('2011/11/22', '2011/11/30', 0, 0, 0)
+/
+INSERT INTO FactureLivraison (dateLivraison, dateLimitePaiement, sousTotal, payee, soldeRestant)
+VALUES ('2012/07/07', '2012/08/08', 666, 0, 666)
 /
 SELECT *
 FROM FactureLivraison
@@ -313,30 +314,38 @@ VALUES (1, 1, 1, 0)
 
 -- CHECK (typeDeCarte IN ('VISA', 'Master Card', 'American Express'))
 INSERT INTO PaiementCarteCredit (noCarte, typeDeCarte, datePaiement, montant, noLivraison)
-VALUES ('1234', 'FAILURE', '2011/11/11', 10, 2)
+VALUES ('1234', 'FAILURE', '2011/11/11', 10, 3)
 /
 
 
 
+-- Donnees pour verifier les fonctions / procedures
+SELECT	*
+FROM	LigneLivraison
+WHERE	noLivraison = 2
+/
+SELECT	*
+FROM	ItemLivraison
+WHERE	noLivraison = 2
+/
 ------------------------
 -- FONCTIONS
 ------------------------
 -- Param1: noProduit
 -- Param2: noCommande:
-SELECT  fQuantiteDejaLivree(1, 1)
-FROM    dual
-/
+SELECT  QuantiteDejaLivree(1, 1)
+FROM    dual;
 
 -- Param1: noLivraison
 -- Param2: dateLimitePaiement
-EXECUTE pProduireFacture(2, '2011/11/30')
-/
-SELECT  *
-FROM    FactureLivraison
-/
+EXECUTE ProduireFacture(2, '2011/11/30');
 
 -- Param1: noLivraison
-EXECUTE pAfficherTotalFacture(2)
+EXECUTE TotalFacture(2);
+
+
+SELECT	*
+FROM	FactureLivraison
 /
 
 

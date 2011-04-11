@@ -454,7 +454,7 @@ END;
 ------------------------------
 -- 1 Prend un numero article et un numero commande et retourne la quantite deja livree
 --
-CREATE OR REPLACE FUNCTION fQuantiteDejaLivree
+CREATE OR REPLACE FUNCTION QuantiteDejaLivree
 (leProduit LigneCommande.noProduit%TYPE, laCommande LigneCommande.noCommande%TYPE)
 RETURN LigneCommande.quantite%TYPE IS
 
@@ -473,7 +473,7 @@ BEGIN
 	uneQteLivree := laQuantite - laQteRestante;
 	
 	RETURN uneQteLivree;
-END fQuantiteDejaLivree;
+END QuantiteDejaLivree;
 /
 
 
@@ -481,10 +481,10 @@ END fQuantiteDejaLivree;
 ----
 -- 2
 ----
-CREATE OR REPLACE PROCEDURE pAfficherTotalFacture
+CREATE OR REPLACE PROCEDURE TotalFacture
 (leNoLivraison	FactureLivraison.noLivraison%TYPE) IS
 
-	-- Déclaration des variable
+	-- Déclaration des variables
 	unSousTotal	FactureLivraison.sousTotal%TYPE;	
 	unTotal		FactureLivraison.sousTotal%TYPE;	
 	
@@ -496,8 +496,10 @@ BEGIN
 
 	unTotal := unSousTotal * 1.15;
 
-	DBMS_OUTPUT.PUT_LINE('Le total de la facture est: '||unTotal);
-END pAfficherTotalFacture;
+	DBMS_OUTPUT.PUT('Le total de la facture no. '||leNoLivraison);
+	DBMS_OUTPUT.PUT(' est: '||unTotal);
+	DBMS_OUTPUT.PUT_LINE('$');
+END TotalFacture;
 /
 
 
@@ -505,7 +507,7 @@ END pAfficherTotalFacture;
 ----
 -- 3
 ----
-CREATE OR REPLACE PROCEDURE pProduireFacture
+CREATE OR REPLACE PROCEDURE ProduireFacture
 (leNoLivraison	FactureLivraison.noLivraison%TYPE, laDateLimitePaiement FactureLivraison.dateLimitePaiement%TYPE) IS
 
 	-- Déclaration des variable
@@ -529,7 +531,7 @@ CREATE OR REPLACE PROCEDURE pProduireFacture
 	leCodeZebre	ItemLivraison.codeZebre%TYPE;
 
 	
-	-- Déclaration du curseur
+	-- Déclaration des curseurs
 	CURSOR lignesLivraison (leNoLivraison FactureLivraison.noLivraison%TYPE) IS
 		SELECT	noProduit, noCommande, qteLivraison
 		FROM	LigneLivraison
@@ -570,6 +572,7 @@ BEGIN
 	DBMS_OUTPUT.PUT_LINE('No. livraison:  '||leNoLivraison);
 	DBMS_OUTPUT.PUT_LINE('Date livraison: '||laDateLivraison);
 	DBMS_OUTPUT.PUT_LINE('No. client:     '||leNoClient);
+	DBMS_OUTPUT.PUT_LINE('-------------------------');
 	DBMS_OUTPUT.PUT(lePrenom);
 	DBMS_OUTPUT.PUT_LINE(' '||leNom);
 	DBMS_OUTPUT.PUT(leNumeroCivique);
@@ -577,7 +580,9 @@ BEGIN
 	DBMS_OUTPUT.PUT(laVille);
 	DBMS_OUTPUT.PUT_LINE(', '||lePays);
 	DBMS_OUTPUT.PUT_LINE(leCodePostal);
-	DBMS_OUTPUT.PUT_LINE('Liv  Code   Comm  Prix');
+	DBMS_OUTPUT.PUT_LINE('-------------------------');
+	DBMS_OUTPUT.PUT_LINE('Pro  Code   Comm  Prix');
+
 
 	unTotal		:= 0;
 	unSousTotal	:= 0;
@@ -586,33 +591,37 @@ BEGIN
 	LOOP
 		FETCH lignesLivraison INTO leNoProduit, leNoCommande, laQteLivraison;
 		EXIT WHEN lignesLivraison%NOTFOUND;
+
 		SELECT	prixVente
 		INTO	unPrixVente
 		FROM	LigneCommande
 		WHERE	LigneCommande.noProduit = leNoProduit	AND
 			LigneCommande.noCommande = leNoCommande;
+
 		unTotalProduit := laQteLivraison * unPrixVente; 
 		unSousTotal := unSousTotal + unTotalProduit;
-
-
-		OPEN lignesItemLivraison(leNoLivraison);
-		LOOP
-			FETCH lignesItemLivraison INTO leCodeZebre, leNoProduit, leNoCommande;
-			EXIT WHEN lignesItemLivraison%NOTFOUND;
-			SELECT	prixVente
-			INTO	unPrixVente
-			FROM	LigneCommande
-			WHERE	LigneCommande.noProduit = leNoProduit	AND
-				LigneCommande.noCommande = leNoCommande;
-			DBMS_OUTPUT.PUT(leNoProduit);
-			DBMS_OUTPUT.PUT('    '||leCodeZebre);
-			DBMS_OUTPUT.PUT('    '||leNoCommande);
-			DBMS_OUTPUT.PUT_LINE('   '||unPrixVente);
-		END LOOP;
-		CLOSE lignesItemLivraison;
-
 	END LOOP;
 	CLOSE lignesLivraison;
+
+
+	OPEN lignesItemLivraison(leNoLivraison);
+	LOOP
+		FETCH lignesItemLivraison INTO leCodeZebre, leNoProduit, leNoCommande;
+		EXIT WHEN lignesItemLivraison%NOTFOUND;
+
+		SELECT	prixVente
+		INTO	unPrixVente
+		FROM	LigneCommande
+		WHERE	LigneCommande.noProduit = leNoProduit	AND
+			LigneCommande.noCommande = leNoCommande;
+
+		DBMS_OUTPUT.PUT(leNoProduit);
+		DBMS_OUTPUT.PUT('    '||leCodeZebre);
+		DBMS_OUTPUT.PUT('    '||leNoCommande);
+		DBMS_OUTPUT.PUT_LINE('   '||unPrixVente);
+	END LOOP;
+	CLOSE lignesItemLivraison;
+
 
 	unMontantTaxes := unSousTotal * 0.15;
 	unTotal := unMontantTaxes + unSousTotal;
@@ -621,8 +630,10 @@ BEGIN
 	SET	sousTotal = unSousTotal, soldeRestant = unTotal
 	WHERE	noLivraison = leNoLivraison;
 
-	DBMS_OUTPUT.PUT_LINE('Sous-total: '||unSousTotal);
-	DBMS_OUTPUT.PUT_LINE('Taxes:      '||unMontantTaxes);
-	DBMS_OUTPUT.PUT_LINE('Total:      '||unTotal);
-END pProduireFacture;
+	DBMS_OUTPUT.PUT_LINE('-------------------------');
+	DBMS_OUTPUT.PUT_LINE('Sous-total:       '||unSousTotal);
+	DBMS_OUTPUT.PUT_LINE('Taxes:             '||unMontantTaxes);
+	DBMS_OUTPUT.PUT_LINE('Total:            '||unTotal);
+
+END ProduireFacture;
 /
